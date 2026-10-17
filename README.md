@@ -1,109 +1,203 @@
 # Flipbook Viewer
 
-Amazing flip book component with animated pages.
+An ultra-lightweight, hardware-accelerated 3D animated flipbook viewer for PDFs and image collections using pure HTML5 Canvas.
 
 ![demo](./test/demo.gif)
 
-This is a tiny library that can show flip books from any source (including PDF’s, images, etc).
+---
 
-## Advantages
+## Highlights
 
-1. Tiny (18 ***Kb***). For comparison, the amazing [page-flip](./https://www.npmjs.com/package/page-flip) is 10 **Mb** (x1000 times bigger!).
-2. Can use any input as a book simply by plugging in a “book provider”. An example PDF book using the amazing [pdfjs](./https://www.npmjs.com/package/pdfjs-dist) from Mozilla can be found in the test folder—[book-pdf.js](./test/book-pdf.js) (referenced usage: [test-pdf.js](./test/test-pdf.js))
-3. Supports **Panning**, **Zooming**, **Liking**, **Sharing**, along with page turning effects.
-4. Raises events to track which pages are being viewed by user.
+- **Ultra-Lightweight**: Only **~18 KB** minified bundle size.
+- **Pure Canvas Rendering**: Smooth 60 FPS page-turning physics and curl animations directly rendered onto a single `<canvas>`.
+- **Universal Provider Model**: Supports any input source (PDFs via PDF.js, image arrays, canvases, or custom providers).
+- **Interactive Controls**: Touch swipe, corner drag, mouse click, keyboard navigation, smooth zoom, and pan.
+- **Analytics & Events**: Built-in event hooks (`seen`) to track page views in real time.
+- **Zero Heavy Dependencies**: Self-contained runtime requiring no large CSS frameworks or bloat.
 
-## Usage
+---
 
-Below shows the flip `book` on the given `div` with the id `div-id`:
+## Quick Start (Vanilla JavaScript)
 
-```js
-'use strict'
+Include the distribution scripts in your HTML:
 
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Flipbook Viewer Demo</title>
+  <style>
+    body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding: 20px; background: #1e293b; color: #fff; }
+    #app { width: 800px; height: 600px; margin-bottom: 12px; }
+    .controls button { padding: 8px 16px; margin: 0 4px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div class="controls">
+    <button id="prev">Previous</button>
+    <button id="next">Next</button>
+    <button id="zoom">Zoom</button>
+  </div>
+
+  <!-- Built Distribution Scripts -->
+  <script src="dist/pdf.worker.js"></script>
+  <script src="dist/flipbook-viewer.js"></script>
+  <script src="dist/book.pdf.js"></script>
+
+  <script>
+    const opts = { width: 800, height: 600, backgroundColor: "#0f172a" };
+    const app = document.getElementById('app');
+    const prev = document.getElementById('prev');
+    const next = document.getElementById('next');
+    const zoom = document.getElementById('zoom');
+
+    // Load PDF document using book provider
+    book.init('sample-local-pdf.pdf', function(err, bookObj) {
+      if (err) return console.error('Failed to load PDF:', err);
+
+      flipbook.init(bookObj, app, opts, function(err, viewer) {
+        if (err) return console.error('Viewer init error:', err);
+
+        // Track page visits
+        viewer.on('seen', pageNum => console.log('Current page:', pageNum));
+
+        // Connect navigation buttons
+        next.onclick = () => viewer.flip_forward();
+        prev.onclick = () => viewer.flip_back();
+        zoom.onclick = () => viewer.zoom();
+
+        // Keyboard arrow navigation
+        window.addEventListener('keydown', e => {
+          if (e.key === 'ArrowRight') viewer.flip_forward();
+          if (e.key === 'ArrowLeft') viewer.flip_back();
+        });
+      });
+    });
+  </script>
+</body>
+</html>
+```
+
+---
+
+## Module Usage (ESM / npm)
+
+Install and import the viewer into your modern bundler setup:
+
+```javascript
 import { init as flipbook } from 'flipbook-viewer';
 
-...
+flipbook(bookProvider, 'container-id', options, (err, viewer) => {
+  if (err) return console.error(err);
 
-flipbook(book, 'div-id', (err, viewer) => {
-  if(err) console.error(err);
+  console.log('Total pages:', viewer.page_count);
 
-  console.log('Number of pages: ' + viewer.page_count);
-  viewer.on('seen', n => console.log('page number: ' + n));
+  viewer.on('seen', (pageNumber) => {
+    console.log('Viewed page:', pageNumber);
+  });
 
-  next.onclick = () => viewer.flip_forward();
-  prev.onclick = () => viewer.flip_back();
-  zoom.onclick = () => viewer.zoom();
-
+  // Navigation API
+  viewer.flip_forward();
+  viewer.flip_back();
+  viewer.zoom();
 });
 ```
 
-The viewer can show *any* flip book. All you need to do is provide a book interface:
+---
 
-```js
-{
-  numPages: () => {
-    /* return number of pages */
-  },
-  getPage: (num, cb) => {
-    /* return page number 'num'
-     * in the callback 'cb'
-     * as any CanvasImageSource:
-     * (CSSImageValue, HTMLImageElement, 
-     *  SVGImageElement, HTMLVideoElement,
-     *  HTMLCanvasElement, ImageBitmap,
-     *  OffscreenCanvas)
-     */
+## The Book Provider Interface
+
+The viewer can display pages from **any** arbitrary source. All you need to supply is an object implementing two simple methods:
+
+```javascript
+const myBookProvider = {
+  // Returns total number of pages
+  numPages: () => 10,
+
+  // Retrieves a specific 1-indexed page
+  getPage: (pageNumber, callback) => {
+    /*
+      callback signature: callback(error, pageData)
+      pageData format:
+      {
+        img: HTMLImageElement | HTMLCanvasElement | ImageBitmap,
+        num: pageNumber,
+        width: number,
+        height: number
+      }
+    */
+    const img = new Image();
+    img.onload = () => {
+      callback(null, {
+        img: img,
+        num: pageNumber,
+        width: img.width,
+        height: img.height
+      });
+    };
+    img.src = `pages/page_${pageNumber}.jpg`;
   }
-}
+};
 ```
 
-## Options
+---
 
-An optional `opts` parameter can be passed in to change the UI:
+## Configuration Options
 
-```js
-const opts = {
-  backgroundColor: "#353535",
-  boxColor: "#353535",
-  width: 800,
-  height: 600,
-}
+Pass an optional configuration object to customize display dimensions and styling:
 
-flipbook(book, 'div-id', opts, (err, viewer) => ...
+```javascript
+const options = {
+  width: 800,               // Stage canvas width in pixels
+  height: 600,              // Stage canvas height in pixels
+  backgroundColor: "#0f172a", // Background fill color
+  boxColor: "#334155",      // Border container color
+  boxBorder: 0,             // Border width in pixels
+  margin: 1,                // Default page margin percentage
+  singlepage: false         // Set true for experimental vertical scroll mode
+};
 ```
 
-## Events
+---
 
-You can listen on the `viewer` for which pages were seen:
+## Programmatic API & Events
 
-```js
-viewer.on('seen', n => ...)
-```
+### Viewer Methods
+| Method | Description |
+| :--- | :--- |
+| `viewer.flip_forward()` | Turn forward to the next page spread |
+| `viewer.flip_back()` | Turn backward to the previous page spread |
+| `viewer.zoom(level?)` | Toggle or set canvas magnification |
 
-## Programmatic API
+### Viewer Events
+| Event | Callback Argument | Description |
+| :--- | :--- | :--- |
+| `'seen'` | `pageNumber: number` | Emitted when a page spread becomes visible |
 
-The returned viewer can be used to programmatically control the viewer:
+---
 
-```js
-viewer.flip_forward()
-viewer.flip_back()
-viewer.zoom()
-```
+## Development & Building
 
-## Single Page View
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-Finally, sometimes it makes sense to just show the book as a simple, scrollable view. To pass in only a `singlepage:true` option:
+2. **Build production bundles (`dist/`):**
+   ```bash
+   npm run start
+   ```
 
-```js
-flipbook(book, 'div-id', {singlepage:true}, (err, viewer) => ...
-```
+3. **Run local development test server:**
+   ```bash
+   npm test
+   ```
 
-This will generate a series of canvases with `class="flipbook__page"` and `id="flipbook__pgnum_<n>"` that you can style using CSS. The single page view will raise the same `seen` event that the flipbook viewer does for tracking which pages the user actually flips through.
+---
 
-The single page viewer is currently experimental and very simple. It should work for many PDF's but is not optimized for handling PDF's with a large number of pages.
+## License
 
-
-Enjoy!
-
-------------
-
+MIT © Charles Lobo / Contributors
