@@ -1,0 +1,632 @@
+<!-- ==========================================================================
+     DIGITAL BOOK READER — 3D CANVAS FLIPBOOK (WORDPRESS READY)
+     Engine: HTML5 Canvas + Mozilla PDF.js
+     Features: Zero-CORS Auto-Resolver, Lazy Rendering, Mobile Responsive
+     ========================================================================== -->
+
+<!-- External CDN Dependencies -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/flipbook-viewer@1.6.1/dist/flipbook-viewer.js"></script>
+
+<div id="flipbook-reader">
+  <style>
+    #flipbook-reader {
+      --fb-primary: #15803d;
+      --fb-primary-hover: #166534;
+      --fb-primary-active: #14532d;
+      --fb-accent: #0284c7;
+      --fb-stage-bg: #0f172a;
+      --fb-stage-surface: #1e293b;
+      --fb-stage-border: #334155;
+      --fb-text-main: #f8fafc;
+      --fb-text-muted: #94a3b8;
+      
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--fb-text-main);
+      background-color: var(--fb-stage-bg);
+      border: 1px solid var(--fb-stage-border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 24px auto;
+      max-width: 1040px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+      box-sizing: border-box;
+      position: relative;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #flipbook-reader *,
+    #flipbook-reader *::before,
+    #flipbook-reader *::after {
+      box-sizing: border-box;
+    }
+
+    /* Header Bar */
+    #flipbook-reader .fb-header {
+      padding: 14px 20px;
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid var(--fb-stage-border);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    #flipbook-reader .fb-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    #flipbook-reader .fb-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #flipbook-reader .fb-badge {
+      font-size: 0.7rem;
+      background-color: var(--fb-primary);
+      color: #ffffff;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    #flipbook-reader .fb-subtitle {
+      font-size: 0.82rem;
+      color: var(--fb-text-muted);
+      margin: 0;
+    }
+
+    #flipbook-reader .fb-btn-download {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #ffffff;
+      background-color: #2563eb;
+      border: 1px solid #3b82f6;
+      border-radius: 6px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    #flipbook-reader .fb-btn-download:hover {
+      background-color: #1d4ed8;
+      color: #ffffff;
+      text-decoration: none;
+    }
+
+    /* Status Bar */
+    #flipbook-reader .fb-top-bar {
+      padding: 8px 20px;
+      background-color: #131d2e;
+      border-bottom: 1px solid var(--fb-stage-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 0.85rem;
+    }
+
+    #flipbook-reader .fb-page-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #e2e8f0;
+    }
+
+    /* Reading Canvas Stage */
+    #flipbook-reader .fb-stage-container {
+      position: relative;
+      width: 100%;
+      min-height: 500px;
+      background: radial-gradient(circle at center, #1e293b 0%, #0b1120 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 14px;
+    }
+
+    #flipbook-reader #fb-canvas-mount {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+    }
+
+    #flipbook-reader #fb-canvas-mount canvas {
+      max-width: 100%;
+      height: auto !important;
+      display: block;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+      border-radius: 4px;
+    }
+
+    /* Overlays */
+    #flipbook-reader .fb-overlay {
+      position: absolute;
+      inset: 0;
+      background-color: rgba(15, 23, 42, 0.94);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 20;
+      text-align: center;
+    }
+
+    #flipbook-reader .fb-spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid #334155;
+      border-top-color: var(--fb-primary);
+      border-right-color: var(--fb-accent);
+      border-radius: 50%;
+      animation: fb-spin 0.85s linear infinite;
+      margin-bottom: 14px;
+    }
+
+    @keyframes fb-spin { to { transform: rotate(360deg); } }
+
+    #flipbook-reader .fb-progress-bar-wrap {
+      width: 220px;
+      height: 6px;
+      background-color: #334155;
+      border-radius: 999px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+
+    #flipbook-reader .fb-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--fb-primary) 0%, var(--fb-accent) 100%);
+      transition: width 0.2s ease;
+    }
+
+    /* Bottom Control Bar */
+    #flipbook-reader .fb-bottom-bar {
+      padding: 10px 20px;
+      background-color: #131d2e;
+      border-top: 1px solid var(--fb-stage-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    #flipbook-reader .fb-btn-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #flipbook-reader .fb-btn-primary {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: 6px;
+      border: none;
+      background-color: var(--fb-primary);
+      color: #ffffff;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background-color 0.15s;
+    }
+
+    #flipbook-reader .fb-btn-primary:hover {
+      background-color: var(--fb-primary-hover);
+    }
+
+    #flipbook-reader .fb-btn-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 6px;
+      border: 1px solid var(--fb-stage-border);
+      background-color: #1e293b;
+      color: #ffffff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.15s;
+    }
+
+    #flipbook-reader .fb-btn-icon:hover {
+      background-color: #334155;
+    }
+
+    #flipbook-reader .fb-svg-icon {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* Fullscreen Mode */
+    #flipbook-reader:fullscreen {
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      margin: 0;
+      border-radius: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #flipbook-reader:fullscreen .fb-stage-container {
+      flex: 1;
+      height: auto;
+    }
+  </style>
+
+  <!-- Header Section -->
+  <div class="fb-header">
+    <div class="fb-title-row">
+      <h3 class="fb-title">
+        Digital Book Reader
+        <span class="fb-badge">Interactive 3D</span>
+      </h3>
+      <a id="fb-download-link" class="fb-btn-download" href="#" target="_blank" rel="noopener noreferrer">
+        <svg class="fb-svg-icon" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        Download PDF
+      </a>
+    </div>
+    <p class="fb-subtitle">Flip pages with mouse drag, click corners, keyboard left/right arrow keys, or buttons below.</p>
+  </div>
+
+  <!-- Page Status Bar -->
+  <div class="fb-top-bar">
+    <div class="fb-page-status">
+      <span>Spread / Page:</span>
+      <strong id="fb-page-current">1</strong> of <strong id="fb-page-total">-</strong>
+    </div>
+    <div style="font-size:0.78rem; color:var(--fb-text-muted);">
+      Click or drag page corners to turn
+    </div>
+  </div>
+
+  <!-- Main Canvas Reading Stage -->
+  <div id="fb-stage-container" class="fb-stage-container">
+    
+    <!-- Loading Overlay -->
+    <div id="fb-loading-overlay" class="fb-overlay">
+      <div class="fb-spinner"></div>
+      <div id="fb-loading-title" style="font-size: 1rem; font-weight: 600; color: #f1f5f9; margin-bottom: 4px;">Connecting to Document...</div>
+      <div id="fb-loading-detail" style="font-size: 0.82rem; color: #94a3b8;">Preparing viewer stream...</div>
+      <div class="fb-progress-bar-wrap">
+        <div id="fb-progress-bar" class="fb-progress-bar"></div>
+      </div>
+    </div>
+
+    <!-- Error Overlay -->
+    <div id="fb-error-overlay" class="fb-overlay" style="display: none;">
+      <div style="background:#1e293b; border:1px solid #ef4444; border-radius:8px; padding:20px; max-width:480px; text-align:left;">
+        <h4 style="color:#ef4444; margin:0 0 8px 0; font-size:1rem;">Document Loading Error</h4>
+        <p id="fb-error-text" style="color:#cbd5e1; font-size:0.85rem; margin:0 0 14px 0; line-height:1.4;"></p>
+        <button id="fb-btn-retry" class="fb-btn-primary" type="button">Retry Loading</button>
+      </div>
+    </div>
+
+    <!-- Canvas Mount Point -->
+    <div id="fb-canvas-mount"></div>
+  </div>
+
+  <!-- Bottom Control Bar -->
+  <div class="fb-bottom-bar">
+    <div class="fb-btn-group">
+      <button id="fb-btn-prev" class="fb-btn-primary" type="button" title="Previous Page (Left Arrow)">
+        <svg class="fb-svg-icon" viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+        Previous
+      </button>
+      <button id="fb-btn-next" class="fb-btn-primary" type="button" title="Next Page (Right Arrow)">
+        Next
+        <svg class="fb-svg-icon" viewBox="0 0 24 24"><path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+      </button>
+    </div>
+
+    <div class="fb-btn-group">
+      <button id="fb-btn-zoom" class="fb-btn-icon" type="button" title="Toggle Zoom Level">
+        <svg class="fb-svg-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      </button>
+      <button id="fb-btn-fullscreen" class="fb-btn-icon" type="button" title="Toggle Fullscreen">
+        <svg class="fb-svg-icon" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      /**
+       * CONFIGURATION
+       * Set your PDF file path or URL below.
+       */
+      const CONFIG = {
+        // Path or URL to the document:
+        pdfUrl: "document.pdf",
+        // Local filename when testing on desktop or local servers:
+        localFallbackFile: "document.pdf",
+        // Canvas visual rendering scale:
+        renderScale: 1.25
+      };
+
+      /**
+       * Multi-source resolver:
+       * Automatically detects local file vs live web environment.
+       */
+      function resolveCandidateUrls() {
+        const isLocalEnvironment =
+          window.location.protocol === "file:" ||
+          window.location.hostname === "localhost" ||
+          window.location.hostname === "127.0.0.1" ||
+          !window.location.hostname;
+
+        if (isLocalEnvironment) {
+          return [
+            CONFIG.localFallbackFile,
+            "./" + CONFIG.localFallbackFile,
+            CONFIG.pdfUrl
+          ];
+        }
+
+        // Running on web server
+        return [
+          CONFIG.pdfUrl,
+          window.location.origin + (CONFIG.pdfUrl.startsWith("/") ? "" : "/") + CONFIG.pdfUrl,
+          CONFIG.localFallbackFile
+        ];
+      }
+
+      // DOM Cache
+      const rootEl = document.getElementById("flipbook-reader");
+      const stage = document.getElementById("fb-stage-container");
+      const mountPoint = document.getElementById("fb-canvas-mount");
+      const loadingOverlay = document.getElementById("fb-loading-overlay");
+      const loadingTitle = document.getElementById("fb-loading-title");
+      const loadingDetail = document.getElementById("fb-loading-detail");
+      const progressBar = document.getElementById("fb-progress-bar");
+      const errorOverlay = document.getElementById("fb-error-overlay");
+      const errorText = document.getElementById("fb-error-text");
+      const pageCurrentEl = document.getElementById("fb-page-current");
+      const pageTotalEl = document.getElementById("fb-page-total");
+      const downloadLink = document.getElementById("fb-download-link");
+      const btnPrev = document.getElementById("fb-btn-prev");
+      const btnNext = document.getElementById("fb-btn-next");
+      const btnZoom = document.getElementById("fb-btn-zoom");
+      const btnFullscreen = document.getElementById("fb-btn-fullscreen");
+      const btnRetry = document.getElementById("fb-btn-retry");
+
+      // Bind download link
+      downloadLink.href = CONFIG.pdfUrl;
+
+      let viewerInstance = null;
+
+      function updateProgress(percent, detail) {
+        progressBar.style.width = percent + "%";
+        if (detail) loadingDetail.textContent = detail;
+      }
+
+      function showError(msg) {
+        loadingOverlay.style.display = "none";
+        errorText.textContent = msg;
+        errorOverlay.style.display = "flex";
+      }
+
+      function hideError() {
+        errorOverlay.style.display = "none";
+      }
+
+      /**
+       * Stream and initialize flipbook
+       */
+      async function initializeViewer() {
+        hideError();
+        loadingOverlay.style.display = "flex";
+        loadingTitle.textContent = "Connecting to Document...";
+        updateProgress(15, "Initializing PDF engine...");
+
+        if (typeof window.pdfjsLib === "undefined") {
+          showError("PDF library could not be loaded. Please check your internet connection.");
+          return;
+        }
+
+        if (typeof window.flipbook === "undefined" || typeof window.flipbook.init !== "function") {
+          showError("Flipbook animation engine could not be loaded from CDN.");
+          return;
+        }
+
+        try {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+        } catch (e) {}
+
+        const candidateUrls = resolveCandidateUrls();
+        let pdf = null;
+        let lastError = null;
+
+        for (let i = 0; i < candidateUrls.length; i++) {
+          const currentUrl = candidateUrls[i];
+          try {
+            loadingTitle.textContent = "Downloading Document...";
+            updateProgress(20 + i * 15, "Accessing: " + currentUrl);
+
+            const response = await fetch(currentUrl);
+            if (!response.ok) {
+              throw new Error("HTTP " + response.status + " (" + response.statusText + ")");
+            }
+
+            const contentLength = response.headers.get("content-length");
+            const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+            let loadedBytes = 0;
+
+            const reader = response.body.getReader();
+            const chunks = [];
+
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              chunks.push(value);
+              loadedBytes += value.length;
+
+              if (totalBytes > 0) {
+                const percent = Math.min(Math.round((loadedBytes / totalBytes) * 75) + 20, 88);
+                updateProgress(percent, (loadedBytes / (1024 * 1024)).toFixed(1) + " MB / " + (totalBytes / (1024 * 1024)).toFixed(1) + " MB");
+              } else {
+                updateProgress(60, (loadedBytes / (1024 * 1024)).toFixed(1) + " MB downloaded");
+              }
+            }
+
+            updateProgress(90, "Processing page structures...");
+            loadingTitle.textContent = "Parsing document...";
+
+            const completeBuffer = new Uint8Array(loadedBytes);
+            let offset = 0;
+            for (let chunk of chunks) {
+              completeBuffer.set(chunk, offset);
+              offset += chunk.length;
+            }
+
+            pdf = await window.pdfjsLib.getDocument({ data: completeBuffer }).promise;
+            break;
+          } catch (err) {
+            console.warn("Source candidate attempt failed (" + currentUrl + "):", err);
+            lastError = err;
+          }
+        }
+
+        if (!pdf) {
+          showError("Failed to open PDF document: " + (lastError ? lastError.message : "Connection Error"));
+          return;
+        }
+
+        const totalPages = pdf.numPages;
+        pageTotalEl.textContent = totalPages;
+
+        updateProgress(96, "Configuring Canvas flip animation...");
+        loadingTitle.textContent = "Building Stage...";
+
+        // Responsive viewport calculation
+        const stageRect = stage.getBoundingClientRect();
+        const stageWidth = Math.min(stageRect.width ? stageRect.width - 24 : 880, 940);
+        const stageHeight = Math.min(Math.round(stageWidth * 0.7), 640);
+
+        const viewerOptions = {
+          width: stageWidth,
+          height: stageHeight,
+          backgroundColor: "#0f172a"
+        };
+
+        // On-demand page adapter with memory protection
+        const pageCache = {};
+        const bookAdapter = {
+          numPages: function () {
+            return totalPages;
+          },
+          getPage: function (pageNumber, cb) {
+            if (pageNumber < 1 || pageNumber > totalPages) return cb();
+            if (pageCache[pageNumber]) return cb(null, pageCache[pageNumber]);
+
+            pdf.getPage(pageNumber).then(function (page) {
+              const dpr = Math.min(window.devicePixelRatio || 1, 2.0);
+              const viewport = page.getViewport({ scale: CONFIG.renderScale * dpr });
+
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.floor(viewport.width);
+              canvas.height = Math.floor(viewport.height);
+
+              const ctx = canvas.getContext("2d", { alpha: false });
+              page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
+                const img = new Image();
+                img.onload = function () {
+                  pageCache[pageNumber] = {
+                    img: img,
+                    num: pageNumber,
+                    width: img.width,
+                    height: img.height
+                  };
+                  cb(null, pageCache[pageNumber]);
+                };
+                img.src = canvas.toDataURL("image/jpeg", 0.85);
+              }).catch(function (err) {
+                cb(err);
+              });
+            }).catch(function (err) {
+              cb(err);
+            });
+          }
+        };
+
+        mountPoint.innerHTML = "";
+
+        // Mount flipbook viewer engine
+        window.flipbook.init(bookAdapter, "fb-canvas-mount", viewerOptions, function (err, viewer) {
+          if (err) {
+            showError("Animation engine error: " + err);
+            return;
+          }
+
+          viewerInstance = viewer;
+          loadingOverlay.style.display = "none";
+
+          viewer.on("seen", function (n) {
+            pageCurrentEl.textContent = n;
+          });
+
+          btnNext.onclick = function () { viewer.flip_forward(); };
+          btnPrev.onclick = function () { viewer.flip_back(); };
+          btnZoom.onclick = function () { viewer.zoom(); };
+        });
+      }
+
+      // Keyboard arrow shortcuts
+      window.addEventListener("keydown", function (e) {
+        if (!viewerInstance) return;
+        const rect = rootEl.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          if (e.key === "ArrowRight") viewerInstance.flip_forward();
+          if (e.key === "ArrowLeft") viewerInstance.flip_back();
+        }
+      });
+
+      // Fullscreen Toggle
+      btnFullscreen.addEventListener("click", function () {
+        if (!document.fullscreenElement) {
+          if (rootEl.requestFullscreen) rootEl.requestFullscreen();
+          else if (rootEl.webkitRequestFullscreen) rootEl.webkitRequestFullscreen();
+        } else {
+          if (document.exitFullscreen) document.exitFullscreen();
+        }
+      });
+
+      btnRetry.addEventListener("click", initializeViewer);
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializeViewer);
+      } else {
+        initializeViewer();
+      }
+    })();
+  </script>
+</div>
